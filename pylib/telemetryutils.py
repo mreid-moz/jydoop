@@ -84,17 +84,19 @@ def setupjob(job, args):
     enddate = Calendar.getInstance()
     enddate.setTime(sdf.parse(args[1]))
 
+    nowdate = Calendar.getInstance()
+
     # HDFS only contains the last 2 weeks of data (up to yesterday)
-    long startMillis = startdate.getTimeInMillis()
-    long endMillis = enddate.getTimeInMillis()
-    long nowMillis = System.currentTimeMillis()
+    startMillis = startdate.getTimeInMillis()
+    endMillis = enddate.getTimeInMillis()
+    nowMillis = nowdate.getTimeInMillis()
 
     startDiff = nowMillis - startMillis
-    if TimeUnit.convert(startDiff, TimeUnit.DAYS) > 14:
+    if TimeUnit.DAYS.convert(startDiff, TimeUnit.MILLISECONDS) > 14:
         raise Exception("HDFS Data only includes the past 14 days of history. Try again with more recent dates or use the HBase data directly.")
 
     endDiff = nowMillis - endMillis
-    if TimeUnit.convert(endDiff, TimeUnit.DAYS) < 1:
+    if TimeUnit.DAYS.convert(endDiff, TimeUnit.MILLISECONDS) < 1:
         raise Exception("HDFS Data only includes data up to yesterday. For (partial) data for today, use the HBase data directly.")
 
     dates = MyDateIterator()
