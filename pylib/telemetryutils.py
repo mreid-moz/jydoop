@@ -1,11 +1,15 @@
 """Utilities for querying telemetry data using jydoop."""
 
 # NOTE: When modifying this file, be careful to use java-specific imports
-# only within setupjob, so that people can test scripts using python!
+#       only within setupjob, so that people can test scripts using python!
+
+# NOTE: By default we run against the exported data in HDFS, but there are some
+#       limitations. If you need to run against HBase, use the hbase_* variants
+#       of the setupjob and mappertype functions.
 
 dateformat = 'yyyyMMdd'
 
-def setupjob(job, args):
+def hbase_setupjob(job, args):
     """
     Set up a job to run on telemetry date ranges using data from HBase
 
@@ -37,11 +41,13 @@ def setupjob(job, args):
     # inform HadoopDriver about the columns we expect to receive
     job.getConfiguration().set("org.mozilla.jydoop.hbasecolumns", "data:json");
 
+def hbase_mappertype():
+    return "HBASE"
 
 hdfs_pathformat = '/data/telemetry/%s'
 hdfs_dateformat = 'yyyy/MM/dd'
 
-def hdfs_setupjob(job, args):
+def setupjob(job, args):
     """
     Similar to the above, but run telemetry data that's already been exported
     to HDFS.
@@ -52,6 +58,7 @@ def hdfs_setupjob(job, args):
     import java.text.SimpleDateFormat as SimpleDateFormat
     import java.util.Date as Date
     import java.util.Calendar as Calendar
+    import java.util.concurrent.TimeUnit as TimeUnit
     import com.mozilla.util.DateUtil as DateUtil
     import com.mozilla.util.DateIterator as DateIterator
     import org.apache.hadoop.mapreduce.lib.input.FileInputFormat as FileInputFormat
@@ -77,9 +84,22 @@ def hdfs_setupjob(job, args):
     enddate = Calendar.getInstance()
     enddate.setTime(sdf.parse(args[1]))
 
+    # HDFS only contains the last 2 weeks of data (up to yesterday)
+    long startMillis = startdate.getTimeInMillis()
+    long endMillis = enddate.getTimeInMillis()
+    long nowMillis = System.currentTimeMillis()
+
+    startDiff = nowMillis - startMillis
+    if TimeUnit.convert(startDiff, TimeUnit.DAYS) > 14:
+        raise Exception("HDFS Data only includes the past 14 days of history. Try again with more recent dates or use the HBase data directly.")
+
+    endDiff = nowMillis - endMillis
+    if TimeUnit.convert(endDiff, TimeUnit.DAYS) < 1:
+        raise Exception("HDFS Data only includes data up to yesterday. For (partial) data for today, use the HBase data directly.")
+
     dates = MyDateIterator()
 
-    DateUtil.iterateByDay(startdate.getTimeInMillis(), enddate.getTimeInMillis(), dates)
+    DateUtil.iterateByDay(startMillis, endMillis, dates)
 
     paths = []
     for d in dates.get():
@@ -88,5 +108,5 @@ def hdfs_setupjob(job, args):
     job.setInputFormatClass(MyInputFormat)
     FileInputFormat.setInputPaths(job, ",".join(paths));
 
-def hdfs_mappertype():
+def mappertype():
     return "TEXT"
