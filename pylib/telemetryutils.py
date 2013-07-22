@@ -72,10 +72,10 @@ def hdfs_setupjob(job, args):
     sdf = SimpleDateFormat(dateformat)
     sdf_hdfs = SimpleDateFormat(hdfs_dateformat)
     startdate = Calendar.getInstance()
-    startdate.setTime(sdf.parse(args[1]))
+    startdate.setTime(sdf.parse(args[0]))
 
     enddate = Calendar.getInstance()
-    enddate.setTime(sdf.parse(args[2]))
+    enddate.setTime(sdf.parse(args[1]))
 
     dates = MyDateIterator()
 
