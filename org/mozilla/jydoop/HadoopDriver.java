@@ -85,6 +85,11 @@ public class HadoopDriver extends Configured implements Tool {
       cx.write(new PythonKey(key), new PythonValue(val));
     }
 
+    public Configuration getConfiguration()
+    {
+      return cx.getConfiguration();
+    }
+
     public Counter getCounter(String groupName, String counterName)
     {
       return cx.getCounter(groupName, counterName);
