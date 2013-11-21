@@ -1,3 +1,5 @@
+import inspect
+import time
 defaultglobals = dict(globals())
 
 class LocalContext:
@@ -50,6 +52,12 @@ def map_reduce(module, fd, outputpath):
     if mapfunc is None or not callable(mapfunc):
         print >>sys.stderr, "Analysis script doesn't define the required function `map`."
         sys.exit(1)
+    include_timestamp = False
+    argspec = inspect.getargspec(mapfunc)
+    if len(argspec.args) > 3:
+        # This is not perfect, since it will also pass timestamps in to multi-
+        # column HBase map() functions, but those won't work right anyways.
+        include_timestamp = True
 
     context = LocalContext(combinefunc)
 
@@ -60,7 +68,10 @@ def map_reduce(module, fd, outputpath):
         total_lines += 1;
         if len(line) == 0:
             continue
-        mapfunc('line_%s' % total_lines, line, context)
+        if include_timestamp:
+            mapfunc('line_%s' % total_lines, line, int(time.time() * 1000), context)
+        else:
+            mapfunc('line_%s' % total_lines, line, context)
 
     context.finish()
 

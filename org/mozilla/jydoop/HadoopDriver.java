@@ -95,6 +95,7 @@ public class HadoopDriver extends Configured implements Tool {
     private PyObject mapfunc;
     private PyObject contextobj;
     private PythonWrapper pwrapper;
+    private boolean includeTimestamp;
 
     private static class ColumnID
     {
@@ -123,7 +124,9 @@ public class HadoopDriver extends Configured implements Tool {
 
       // should be family:qualifier[,family:qualifier...]
 
-      String[] columns = context.getConfiguration().get("org.mozilla.jydoop.hbasecolumns").split(",");
+      Configuration conf = context.getConfiguration();
+      String[] columns = conf.get("org.mozilla.jydoop.hbasecolumns").split(",");
+      includeTimestamp = conf.getBoolean("org.mozilla.jydoop.include_row_timestamp", false);
 
       columnlist = new ColumnID[columns.length];
       for (int i = 0; i < columns.length; ++i) {
@@ -146,11 +149,21 @@ public class HadoopDriver extends Configured implements Tool {
 
     public void map(ImmutableBytesWritable key, Result value, Context context) throws IOException, InterruptedException {
 
-      // map(k, column1, [column2, ...], context)
+      // map(k, column1, [column2, ...], [timestamp], context)
+      int argcount = 2 + columnlist.length;
 
-      PyObject[] args = new PyObject[2 + columnlist.length];
+      if (includeTimestamp) {
+          argcount += 1;
+      }
+      PyObject[] args = new PyObject[argcount];
       args[0] = Py.newString(StringUtil.fromBytes(key.get()));
       args[args.length - 1] = contextobj;
+      if (includeTimestamp) {
+          // TODO: change to this when we move to HBase 0.96+:
+          // Cell cell = value.getColumnLatestCell();
+          // args[args.length - 2] = cell == null ? Py.None : Py.newLong(cell.getTimestamp());
+          args[args.length - 2] = Py.newLong(value.raw()[0].getTimestamp());
+      }
       for (int i = 0; i < columnlist.length; ++i) {
         byte[] vbytes = value.getValue(columnlist[i].family, columnlist[i].qualifier);
         args[i + 1] = vbytes == null ? Py.None : Py.newString(StringUtil.fromBytes(vbytes));
@@ -336,7 +349,6 @@ public class HadoopDriver extends Configured implements Tool {
        job.setMapperClass(JydoopMapper.class);
        break;
     default:
-       // TODO: Warn?
        // Default to HBaseMapper
        job.setMapperClass(HBaseMapper.class);
        break;
